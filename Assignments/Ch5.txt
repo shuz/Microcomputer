@@ -1,0 +1,517 @@
+1. 熟悉了一下。
+2. 同Ch.4作业题，源代码如下，最后结果存放在val3中，低位在低字节中，所以要(以字节为单位)倒过来读。
+title: bcdadd
+.model	small
+
+.code
+	org	100h
+main:	jmp begin
+
+val1	db	24h, 10h, 76h, 24h
+val2	db	80h, 32h, 51h, 93h
+
+val3	db	?, ?, ?, ?
+
+
+adjust	macro
+	local	out_a, out_b, rec_c
+	pushf
+	push	ax
+	and	al, 0fh
+	cmp	al, 0ah
+	pop	ax
+	jb	out_a
+	add	al, 06h
+out_a:  push	ax
+	and	al, 0f0h
+	cmp	al, 0a0h
+	pop	ax
+	jb	rec_c
+	add	al, 60h
+	jnc	rec_c
+	popf
+	stc
+	jmp	out_b
+rec_c:	popf
+out_b:	
+	endm
+
+
+begin:	mov	bx, offset val1
+	mov	si, offset val2
+	mov	di, offset val3
+        mov	cx, 04h
+	clc
+
+next:	mov	al, [bx]
+	mov	dl, [si]
+
+	adc	al, dl
+	adjust
+	mov	[di], al
+	inc	bx
+	inc	si
+	inc	di
+	loop	next
+
+	mov	ah, 4ch
+	int	21h
+
+	end	main
+
+3. 源代码如下:
+title: bcc
+.model	small
+
+.code
+	org	100h
+main:	jmp begin
+
+str	db	03h, 16h, 25h, 93h, 44h, 87h, 20h, 65h, 0f6h, 0c2h
+strlen	equ	10
+table	db	'0123456789ABCDEF'
+msg	db	'The BCC of these code is '
+bccbuf	db	0, 0, 'H.', 0dh, 0ah, '$'
+
+begin:	mov	si, offset str
+        mov	cx, strlen
+	mov	ah, 0
+
+next:	lodsb
+	xor	ah, al
+	loop	next
+
+	mov	al, ah
+	and	al, 0f0h
+	mov	cl, 4
+	shr	al, cl
+	mov	bx, offset table
+	xlat
+	mov	bccbuf, al;
+
+	mov	al, ah
+	and	al, 0fh
+	xlat
+	mov	bccbuf + 1, al
+
+	mov	dx, offset msg
+	mov	ah, 09h
+	int	21h
+
+	mov	ah, 4ch
+	int	21h
+
+	end	main
+
+4. 显示时间日期
+title: datetime
+.model	small
+
+; 把al内的2位10进制数化为ascii码，存放在addr里, 用bx作为映射表的地址, ten寄存器存放10
+toascb	macro	addr, ten
+	mov	ah, 0
+	div	ten
+	xlat
+	mov	addr, al
+	mov	al, ah
+	xlat
+	mov	addr + 1, al
+	endm
+
+; 把ax内的4位10进制数化为ascii码，存放在addr里, 用bx作为映射表的地址, ten寄存器存放10
+; 直接用8位商8位余数的除法，因为255*10 = 2550, 所以商不会溢出
+toascw	macro	addr, ten
+	div	ten
+	xchg	al, ah
+	xlat
+	mov	addr + 3, al
+	mov	al, ah
+	mov	ah, 0
+	div	ten
+	xchg	al, ah
+	xlat
+	mov	addr + 2, al
+	mov	al, ah
+	toascb	addr, ten
+	endm
+
+.code
+	org	100h
+main:	jmp	begin
+
+table	db	'0123456789'
+dmsg	db	'Current date is '
+year	db	4 dup(?), '/'
+month	db	2 dup(?), '/'
+day	db	2 dup(?), 0dh, 0ah
+tmsg	db	'Current time is '
+hour	db	2 dup(?), ':'
+min	db	2 dup(?), ':'
+sec	db	2 dup(?), ':'
+msec	db	2 dup(?), 0dh, 0ah, '$'
+
+begin:	mov	bx, offset table
+
+	mov	ah, 2ah
+        int	21h
+
+	mov	ax, cx
+	mov	cl, 10
+	toascw	year, cl
+	mov	al, dh
+	toascb	month, cl
+	mov	al, dl
+	toascb	day, cl
+
+	mov	ah, 2ch
+	int	21h
+
+	mov	al, ch
+	mov	ch, 10
+	toascb	hour, ch
+	mov	al, cl
+	toascb	min, ch
+	mov	al, dh
+	toascb	sec, ch
+	mov	al, dl
+	toascb	msec, ch
+
+	mov	dx, offset dmsg
+	mov	ah, 09h
+	int	21h
+
+	mov	ah, 4ch
+	int	21h
+
+	end	main
+
+5. 源代码如下:
+title: delblank
+.model small
+.code
+	org	100h
+main:	jmp	begin
+
+;data
+errmsg	equ	$
+	db	'Disk operation error!', 0dh, 0ah, '$'
+
+inname	equ	$
+	db	'delblank.asm', 0h
+outname	equ	$
+	db	'outfile.txt', 0h
+
+infile	dw	?
+outfile	dw	?
+
+buf1	equ	1000h
+buf2	equ	3000h
+bufsz	equ	2000h
+
+; macro definitions
+dos	macro	$ah
+	mov	ah, $ah
+	int	21h
+	endm
+
+; print message
+prtmsg	macro	msg
+	mov	dx, msg
+	mov	ah, 09h
+	int	21h
+	endm	
+
+; print a char
+prtchr	macro	ch
+	mov	dl, ch
+	mov	ah, 02h
+	int	21h
+	endm
+
+; create a normal file
+fcrt	macro	name
+	mov	dx, name
+	mov	cx, 0
+	dos	3ch
+	jc	abort
+	endm
+
+; open a file
+; modes:
+mread	equ	0
+mwrite	equ	1
+mboth	equ	2
+fopen	macro	name, mode
+	mov	dx, name
+	mov	al, mode
+	dos	3dh
+	jc	abort
+	endm
+
+; close a file
+fclose	macro	handle
+	mov	bx, handle
+	dos	3eh
+	jc	abort
+	endm
+
+; read a file
+fread	macro	handle, count, buf
+	mov	bx, handle
+	mov	cx, count
+	mov	dx, buf
+	dos	3fh
+	jc	abort
+	endm
+
+; fwrite a file
+fwrite	macro	handle, count, buf
+	mov	bx, handle
+	mov	cx, count
+	mov	dx, buf
+	dos	40h
+	jc	abort
+	xor	ax, cx
+	jnz	abort
+	endm
+
+; end macro definitions
+
+abort:	prtmsg	errmsg
+	int 20h
+
+begin:	fopen	inname, mread
+	mov	infile, ax
+	fcrt	outname
+	mov	outfile, ax
+
+rdbuf:	fread	infile, bufsz, buf1
+	mov	cx, ax
+	jcxz	exit
+
+; process
+	mov	si, buf1
+	mov	di, buf2
+	cld
+nextch:	lodsb
+	cmp	al, ' '
+	jbe	blank
+	stosb
+	prtchr	al
+blank:	loop	nextch
+
+	sub	di, buf2
+	fwrite	outfile, di, buf2
+	jmp	rdbuf
+
+exit:	fclose	infile
+	fclose	outfile
+	dos	4ch
+
+	end	main
+
+6. 源代码如下，额外功能: 每次改变色块颜色(属性每次+1)
+title: int10
+.model small
+.code
+	org	100h
+main:	jmp	begin
+
+;data
+mode	db	?
+char	equ	0dbh
+
+; macro definitions
+scall	macro	$ah, $int
+	mov	ah, $ah
+	int	$int
+	endm
+
+dos	macro	$ah
+	scall	$ah, 21h
+	endm
+
+disp	macro	$ah
+	scall	$ah, 10h
+	endm
+
+kbd	macro	$ah
+	scall	$ah, 16h
+	endm
+
+; get display mode
+gdispm	macro	addr
+	disp	0fh
+	mov	addr, al
+	endm
+
+; set display mode
+; mode:
+cch42	equ	01h
+sdispm	macro	mode
+	mov	al, mode
+	disp	00h
+	endm
+
+; prepare position arguments
+prppos	macro	x, y
+	mov	bh, 0
+	mov	dh, y
+	mov	dl, x
+	endm
+
+; set cursor position with implicit parameters
+setposi	macro
+	disp	02h
+	endm
+
+; set cursor position
+setpos	macro	x, y
+	prppos	x, y
+	setposi
+	endm
+
+; write to cursor position
+; extra parameter: cx = repeat count, bl = attr
+; attr: BRGBIRGB
+blue	equ	10h
+wrpos	macro	char
+	mov	al, char
+	mov	bh, 0
+	disp	09h
+	endm
+
+; check key
+chkkey	macro	key
+	local	out
+	kbd	01h
+	jz	out
+	kbd	00h
+	cmp	al, key
+	jnz	out
+	jmp	exit
+out:	
+	endm
+
+delay	macro
+	local	wait
+	mov	cx, 0FFFFh
+wait:	loop	wait
+	endm
+
+; end macro definitions
+
+begin:	gdispm	mode
+	sdispm	cch42
+	
+x0	equ	10h
+y0	equ	05h
+x1	equ	1fh
+y1	equ	14h
+ctl_c	equ	03h
+
+	prppos	x0, y0
+	mov	bl, blue
+again:	setposi
+	mov	cx, 01h
+	wrpos	char
+	chkkey	ctl_c
+	delay
+	inc	dh
+	cmp	dh, y1
+	jl	again
+	mov	dh, y0
+	inc	dl
+	cmp	dl, x1
+	jl	again
+	mov	dl, x0
+	inc	bl
+	jmp	again
+
+exit:	sdispm	mode
+	dos	4ch
+	end	main
+
+7. 源代码如下
+title: int1ch
+.model	small
+
+; macro definitions
+scall	macro	$ah, $int
+	mov	ah, $ah
+	int	$int
+	endm
+
+dos	macro	$ah
+	scall	$ah, 21h
+	endm
+
+kbd	macro	$ah
+	scall	$ah, 16h
+	endm
+
+; print message
+prtmsg	macro	msg
+	mov	dx, msg
+	dos	09h
+	endm	
+
+setvec	macro	$int, $rtn
+	mov	al, $int
+	mov	dx, offset $rtn
+	dos	25h
+	endm
+
+getvec	macro	$int, $seg, $off
+	mov	al, $int
+	mov	$seg, es
+	mov	$off, bx
+	dos	35h
+	endm
+
+; end macro definitions
+
+.code
+	org	100h
+
+start:	jmp	begin
+seg1c	dw	0
+off1c	dw	0
+num1c	dw	0
+sec5	equ	51h
+msg	equ	$
+	db	'How are you, Mr. Wang!', 0dh, 0ah, '$'
+ctl_c	equ	03h
+intn	equ	1ch
+
+int1c	proc
+	dec	num1c
+	iret
+	int1c	endp
+
+begin:	mov	num1c, sec5
+	getvec	intn, seg1c, off1c
+	mov	ax, cs
+	mov	ds, ax
+	setvec	intn, int1c
+again:	mov	ax, num1c
+	test	ax, 0ffffh
+	jz	smsg
+	kbd	01h
+	jz	again
+	kbd	00h
+	cmp	al, ctl_c
+	jz	exit
+	jmp	again
+smsg:	prtmsg	msg
+	mov	num1c, sec5
+	jmp	again
+
+exit:	mov	ds, seg1c
+	setvec	intn, off1c
+	dos	4ch
+	end	start
+
+
+8. 抱歉，硬盘中均为NTFS格式的分区，没有FAT分区 :b
+   (而且看上去好像不简单还很悬乎, 改坏个分区可就……) 所以没做。

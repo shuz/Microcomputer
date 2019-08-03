@@ -1,0 +1,34 @@
+利用PCTOOLS 9.0的DiskEdit(de.exe) 
+预先在硬盘根目录准备一个test.txt, 里面写上catcatcat, 
+以及test2.txt, 里面写上dogdogdog.
+
+切换到Logical Drive模式，分析C盘后切换到它的FAT1, 切换到HEX模式观察到逻辑扇区号为1, 
+然后切换到FAT2, 观察到逻辑扇区号为256. 从而得知FAT表大小为255个扇区，所以跳到511号扇区，
+看到FDT. 然后观察文件test.txt的信息，看到首簇号为0006h，其次观察test2.txt, 
+看到首簇号为000Ch, 然后Select Sector, 填写最大的范围，然后搜索字符串catcatcat和dogdogdog，
+找到的地址分别为66800h, Sector 820 和 96800h, Sector 1204.
+然后看到C盘的BOOT record中写有Sectors per cluster: 64, 便可以有如下方程: 
+  a*6 + b = 820
+  a*12 + b = 1204
+解得a = 64, b = 436. 所以有转换表达式 y = 64*x + 436, 其中x是首簇号，y 是逻辑扇区号。
+另x = 2(用DiskEdit看到簇号从2开始), 得到y = 564. 这就是起始数据的起始逻辑扇区号。
+从BOOT record的信息中看到Bytes per sector: 512, 于是可以根据扇区号求得地址:
+z = 512*y, 其中z是地址，y是扇区号。（其实这里还可以看到Sectors per cluster: 64, 
+也就是上面所求的a的值，这样的话只要一个文件即可，但是当时不知道 :p )
+
+得到地址:
+FAT1	00200h
+FAT2	20000h
+FDT	3FE00h
+文件区	46800h
+
+为了delete一个大于1个簇的文件再恢复，首先copy command.com bigfile.dat.
+(command.com有90k左右，超过了一个cluster的32k大小)
+首先观察一下，看到bigfile.dat的首簇号为2, 然后在FAT表中追踪到:
+0002 -> 000D -> 000E -> EOF
+然后del bigfile.dat, 然后尝试恢复。
+再次进入DiskEdit, 观察目录表项，看到项目首字母变成0E5h, 修改为B的ASCII码42H.
+然后到FAT1, FAT2分别根据上面记录下来的FAT链恢复FAT表项，保存即可。
+然后保存退出后dir C:\看到bigfile.dat
+为了验证是否真的恢复了，ren bigfile.dat haha.com, 然后直接运行haha.com, 看到
+命令提示附，然后exit退出。（更严格的验证是比较两个文件，这里偷个懒）

@@ -1,0 +1,12 @@
+CODE SEGMENT 
+        ASSUME CS:CODE
+START:  MOV AX,8000H
+        MOV DS,AX
+        MOV AL,3H
+        MOV SI,0000H
+        MOV [SI],AL
+        INT 20H
+CODE ENDS
+END START
+
+;在DS:0处,即8000:0000H处存入值03H

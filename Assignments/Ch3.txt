@@ -1,0 +1,89 @@
+1.	目操作数		源操作数
+(1)	寄存器寻址		直接数寻址
+(2)	寄存器寻址		立即数寻址
+(3)	寄存器寻址		寄存器间接寻址
+(4)	寄存器相对寻址		寄存器寻址
+(5)	寄存器相对寻址		寄存器寻址
+(6)	基址变址寻址		直接数寻址
+(7)	寄存器寻址		基址变址寻址
+(8)	相对基址变址寻址	寄存器寻址
+(9)	寄存器寻址		直接数寻址
+(10)	寄存器寻址		寄存器寻址
+
+2.	AX
+(1)	0200H
+(2)	MemW[DS*10H + 200H] 	= MemW[10200H] = 2A10H
+(3)	0200H
+(4)	MemW[DS*10H + BX + 3] 	= MemW[10203H] = 5946H
+(5)	MemW[DS*10H + BX + SI] 	= MemW[10202H] = 463CH
+(6)	MemW[DS*10H + BX + SI + 2] = MemW[10204H] = 6B59H
+
+3.	寻址方式		物理地址
+(1)	直接寻址		10100H
+(2)	直接寻址		10030H
+(3)	寄存器间接寻址		10100H
+(4)	寄存器间接寻址		20100H
+(5)	寄存器间接寻址		100A0H
+(6)	寄存器相对寻址		10110H
+(7)	寄存器间接寻址		35200H
+(8)	相对基址变址寻址	352D0H
+(9)	相对基址变址寻址	10154H
+(10)	基址变址寻址		35224H
+
+6.	错误
+(1)	源和目寄存器大小不匹配
+(2)	直接数不能作为目的
+(3)	没有直接数到DS的数据通道
+(4)	不能在一条指令中执行从内存到内存转移
+(5)	IP不能用MOV指令操作
+(6)	IP不能用MOV指令操作
+(7)	BP不能作为变址
+(8)	没有错误
+(9)	SI不能作为基址
+(10)	OFFSET后应为符号地址
+(11)	目寄存器大小与源操作数不匹配
+(12)	立即数不能参与交换
+(13)	IN的目的必须是AL或AX
+(14)	超过16位的端口地址必须放在DX中
+
+15.	
+title: revcnt	rev ax dx, cnt dx
+
+regsz 	equ	10h		; register size
+
+data	segment
+ans	dw	0
+data	ends
+
+stk	segment stack'stack'
+	dw	20h dup(0)
+stk	ends
+
+code	segment
+	assume	cs:code, ds:data, ss:stk
+begin:	mov	dx, data
+	mov	ds, dx
+	mov	cx, regsz	; loop count
+	mov	si, ax		; copy ax to si
+rot:	rcl	si, 1
+	rcr	dx, 1
+	loop	rot
+
+	mov	di, 0		; count 1s in dx
+	mov	si, dx		; copy dx to si
+	mov	cx, regsz	; loop count
+cnt:	rol	dx, 1
+	jnc	next
+	inc	di
+next:	loop	cnt
+	mov	ans, di
+
+	mov	ah, 4ch
+	int	21h
+code	ends
+end	begin
+
+
+20.
+(1)	类型：40H / 4 = 10H
+(2)	地址：CS:IP = D169:240B = 0D3A9BH
